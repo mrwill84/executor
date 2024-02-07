@@ -123,7 +123,9 @@ fastify.get('/screenshot', async (request, reply) => {
     reply.type('image/png') // if you don't set the content, the image would be downloaded by browser instead of viewed
     reply.send(buffer)
 });
- 
+fastify.post('/', async (request, reply) => {
+    reply.send(200).send('ok')
+})
 
 fastify.post('/page', async (request, reply) => {
     console.log('request.body.url', request.body.url)
