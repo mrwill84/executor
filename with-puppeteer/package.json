@@ -1,0 +1,23 @@
+{
+  "name": "zenika-alpinechrome-withpuppeteer",
+  "version": "1.0.0",
+  "description": "Tests with puppeteer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zenika/alpine-chrome.git"
+  },
+  "author": "jlandure",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^18.0.5",
+    "@puppeteer/replay": "^1.0.0",
+    "redis": "^4.0.0",
+    "fastify": "^4.0.0",
+    "pino": "^8.15.0",
+    "pino-pretty": "^10.2.0"
+  }
+}
