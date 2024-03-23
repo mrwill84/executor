@@ -4,6 +4,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD 1
 ENV PUPPETEER_EXECUTABLE_PATH /usr/bin/chromium-browser
 # ENV DEBUG puppeteer:*
 ENV DEBUG_COLORS true
+WORKDIR /usr/cache
 WORKDIR /usr/src/app
 COPY --chown=chrome package.json  ./
 RUN npm install

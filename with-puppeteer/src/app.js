@@ -16,7 +16,8 @@ const fastify = require('fastify')({
 const puppeteer = require("puppeteer");
 const { createRunner, parse, PuppeteerRunnerExtension } = require('@puppeteer/replay');
 const fs = require('fs');
-
+const path = require('path');
+const url = require('url');
 
 async function openPage(url) {
 
@@ -50,8 +51,11 @@ async function setWindowSize(page, width, height) {
     const { windowId } = await session.send('Browser.getWindowForTarget');
     await session.send('Browser.setWindowBounds', { windowId, bounds: { width: width, height: height } });
     await session.detach();
-
 }
+
+
+
+
 fastify.post('/google', async (request, reply) => {
     if (goolgepage) {
         goolgepage.close()
@@ -76,7 +80,7 @@ fastify.post('/google', async (request, reply) => {
 
 async function ssr(url) {
     console.info('rendering the page in ssr mode', url);
-
+    url = decodeURIComponent( url )
     try {
         const page = await openPage(url)
         const html = await page.content();
@@ -88,10 +92,30 @@ async function ssr(url) {
         throw new Error('page.goto/waitForSelector timed out.' + url);
     }
 }
+ 
+
+function getFileNameFromUrl(fullUrl) {
+    // Parse the full URL
+    const parsedUrl = new URL(fullUrl);
+
+    // Extract domain and path
+    const domain = parsedUrl.hostname;
+    
+
+    // Concatenate domain and file name
+    const fullFileName = domain+'.html';
+
+    return fullFileName;
+}
+
 
 fastify.get('/ssr', async (request, reply) => {
     console.log('request.query', request.query)
     const { html } = await ssr(request.query.url);
+    ///'/usr/cache/' + getFileNameFromUrl (request.query.url) 
+    fs.writeFileSync( 
+       '/usr/cache/'+ getFileNameFromUrl(request.query.url), html
+    )
     reply.header('Content-Type', 'text/html; charset=utf-8')
     reply.send(html)
 });
@@ -123,15 +147,14 @@ fastify.get('/screenshot', async (request, reply) => {
     reply.type('image/png') // if you don't set the content, the image would be downloaded by browser instead of viewed
     reply.send(buffer)
 });
+
 fastify.get('/', async (request, reply) => {
     reply.code(200).send('ok')
 })
 
-fastify.post('/page', async (request, reply) => {
-    console.log('request.body.url', request.body.url)
-    page = await openPage(request.body.url)
-    const context = await testElement(page, request.body.selector)
-    reply.send({ 'context': context })
+
+fastify.get('/linkedin', async (request, reply) => {
+    
 })
 
 const start = async () => {
