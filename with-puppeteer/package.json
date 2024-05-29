@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Tests with puppeteer",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -13,11 +14,22 @@
   "author": "jlandure",
   "license": "MIT",
   "dependencies": {
-    "puppeteer": "^18.0.5",
     "@puppeteer/replay": "^1.0.0",
-    "redis": "^4.0.0",
+    "@sparticuz/chromium": "^123.0.1",
+    "axios": "^1.6.8",
+    "chrome-launcher": "^1.1.1",
+    "chrome-remote-interface": "^0.33.0",
+    "cli-color": "^2.0.4",
     "fastify": "^4.0.0",
     "pino": "^8.15.0",
-    "pino-pretty": "^10.2.0"
+    "pino-pretty": "^10.2.0",
+    "puppeteer": "^18.0.5",
+    "puppeteer-afp": "^1.1.6",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-real-browser": "^1.2.16",
+    "random-useragent": "^0.5.0",
+    "redis": "^4.0.0",
+    "xvfb": "^0.4.0"
   }
 }

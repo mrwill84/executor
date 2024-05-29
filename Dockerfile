@@ -1,10 +1,15 @@
-FROM zenika/alpine-chrome:with-node
+FROM ubuntu:22.04
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD 1
-ENV PUPPETEER_EXECUTABLE_PATH /usr/bin/chromium-browser
-WORKDIR /usr/src/app
-COPY --chown=chrome package.json package-lock.json ./
-RUN npm install
-COPY --chown=chrome . ./
-ENTRYPOINT ["tini", "--"]
-CMD ["node", "/usr/src/app/src/pdf"]
+# Install necessary dependencies for running Chrome
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    apt-transport-https \
+    xvfb curl libasound2 libatk-bridge2.0-0 libatk1.0-0
+
+# Install Google Chrome
+# Download and unpack Chrome
+RUN set -ex && \
+	curl -SL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /google-chrome-stable_current_amd64.deb 
+RUN dpkg -i  /google-chrome-stable_current_amd64.deb 
