@@ -21,66 +21,64 @@ import { connect } from './index.js'
 import { protectPage, protectedBrowser } from 'puppeteer-afp'
 let  globalBrowser = null
 let globalPage = null 
-function sleep(ms) {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
+import { PuppeteerCrawler, Dataset } from 'crawlee';
+
+// Define the crawler outside the request handler to reuse it if possible
+const crawler = new PuppeteerCrawler({
+    async requestHandler({ request, page }) {
+        const { item, top, pages } = request.userData;
+       // await page.goto(searchURL, { waitUntil: 'networkidle2' });
+       // await scrollMoreRandomly(page, pages);
+
+        const booksResults = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('.tF2Cxc')).map(el => ({
+                title: el.querySelector('.DKV0Md')?.textContent,
+                link: el.querySelector('.yuRUbf a')?.getAttribute('href'),
+                description: el.querySelector('.lEBKkf')?.textContent,
+            }));
+        });
+        // console.log('booksResults',booksResults )
+        // Use Dataset to store the results temporarily
+        await Dataset.pushData(booksResults.slice(0, top));
+    },
+    errorHandler({ error }) {
+        console.log(`Error occurred during crawling: ${error.message}`);
+    }
+});
+
+async function scrollMoreRandomly(page, pagesCount) {
+    for (let i = 0; i < pagesCount; i++) {
+        await page.evaluate(() => {
+            const scrollHeight = document.body.scrollHeight;
+            const randomScroll = Math.floor(Math.random() * scrollHeight);
+            window.scrollTo(0, randomScroll);
+        });
+        await page.waitForTimeout(1000); // Adjust timeout as needed
+    }
 }
 
 fastify.post('/google', async (request, reply) => {
-    const item = request.body.item.replaceAll('"',"")
-    const url = `https://www.google.com/search?q=${item}&gl=us`
-    const top = request.body.top
-    const googleContent = await test(url , async function (page) {
+    const { item, top, pages } = request.body;
+    const encodedSearchTerm = encodeURIComponent(item);
+    const searchURL = `https://www.google.com/search?q=${encodedSearchTerm}&gl=us`;
+    await crawler.addRequests([ searchURL ]);
 
-        async function scrollMoreRandomly( ) {
-        for (let i = 0; i < request.body.pages; i++) {
-          // Scrolling randomly within the viewport
-            await page.evaluate(() => {
-                const scrollHeight = document.body.scrollHeight;
-                const randomScroll = Math.floor(Math.random() * scrollHeight);
-                window.scrollTo(0, randomScroll);
-            });
-            await page.waitForTimeout(1000); // Adjust timeout as needed
-            }
-        }
-        await scrollMoreRandomly()
-        let books_results = [];
-        books_results = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll(".tF2Cxc")).map((el) => {
-                return {
-                    title: el.querySelector(".DKV0Md")?.textContent,
-                    link: el.querySelector(".yuRUbf a")?.getAttribute('href'),
-                    description: el.querySelector(".lEBKkf")?.textContent,
-                }
-            })
-        });
-        return books_results
-    })
-    const res = googleContent.slice(0,top) 
-    reply.send(res)
-})
+    // Start the crawler
+    await crawler.run();
 
-async function test(url,callback ){
-    const url2 = url.replaceAll('"',"")
-    try {
-        if ( globalBrowser && globalPage) { 
-             
-            console.log('globalPage will goto',url2 )
-            await globalPage.goto(url2, {
-                waitUntil: 'networkidle2'
-            })
-           
-            const html = await globalPage.content();
-            let ret = null 
-            if(callback) ret =  await callback( globalPage )
-            console.log('result',ret)
-            return ret?ret:html
-        }
-    }catch(e ){
-        console.log('no result',e )
+    // Retrieve the results from the Dataset
+    let results = await Dataset.getData();
+    let items = results.items
+    // Clear the Dataset for the next request
+    //await results.drop();
+    if (items&& items.length > 0){
+        items = items.slice(top)
     }
-}
+
+    reply.send( items );
+});
+
+
 
 async function ssr(url) {
     url = decodeURIComponent( url )
@@ -108,87 +106,53 @@ function getFileNameFromUrl(fullUrl) {
 }
 
 
-const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.75 Safari/537.36';
-
-async function createPage (url) {
-    const userAgent = randomUseragent.getRandom();
-    const UA = userAgent || USER_AGENT;
-    const page = await browser.newPage();
-    await page.setViewport({
-        width: 1920 + Math.floor(Math.random() * 100),
-        height: 3000 + Math.floor(Math.random() * 100),
-        deviceScaleFactor: 1,
-        hasTouch: false,
-        isLandscape: false,
-        isMobile: false,
-    });
-    await page.setUserAgent(UA);
-    await page.setJavaScriptEnabled(true);
-    await page.setDefaultNavigationTimeout(0);
-    if (true) {
-        await page.setRequestInterception(true);
-        page.on('request', (req) => {
-            if(req.resourceType() == 'stylesheet' || req.resourceType() == 'font' || req.resourceType() == 'image'){
-                req.abort();
-            } else {
-                req.continue();
-            }
-        });
-    }
-
-    await page.evaluateOnNewDocument(() => {
-        //pass webdriver check
-        Object.defineProperty(navigator, 'webdriver', {
-            get: () => false,
-        });
-    });
-
-    await page.evaluateOnNewDocument(() => {
-        //pass chrome check
-        window.chrome = {
-            runtime: {},
-            // etc.
-        };
-    });
-
-    await page.evaluateOnNewDocument(() => {
-        //pass plugins check
-        const originalQuery = window.navigator.permissions.query;
-        return window.navigator.permissions.query = (parameters) => (
-            parameters.name === 'notifications' ?
-                Promise.resolve({ state: Notification.permission }) :
-                originalQuery(parameters)
-        );
-    });
-
-    await page.evaluateOnNewDocument(() => {
-        // Overwrite the `plugins` property to use a custom getter.
-        Object.defineProperty(navigator, 'plugins', {
-            // This just needs to have `length > 0` for the current test,
-            // but we could mock the plugins too if necessary.
-            get: () => [1, 2, 3, 4, 5],
-        });
-    });
-
-    await page.evaluateOnNewDocument(() => {
-        // Overwrite the `plugins` property to use a custom getter.
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en'],
-        });
-    });
-
-    await page.goto(url, { waitUntil: 'networkidle2',timeout: 0 } );
-    return page;
-}
-
 fastify.post('/ssr', async (request, reply) => {
-    console.log( 'request.body.url',request.body.url)
-    const { html } = await ssr(request.body.url);
-    fs.writeFileSync( 
-       '/usr/cache/'+ getFileNameFromUrl(request.body.url), html
-    )
-    reply.header('Content-Type', 'text/html; charset=utf-8')
-    reply.send(html)
+    //console.log( 'urlToRender',request.body.url)
+    let urlToRender = decodeURIComponent(request.body.url);
+    //console.log( 'urlToRender', urlToRender)
+    const fileName = getFileNameFromUrl(urlToRender);
+    urlToRender = urlToRender.replaceAll('"','')
+    console.log( 'urlToRender',urlToRender)
+    // Check if we already have this page saved
+    const cachePath = `/usr/cache/${fileName}`;
+    //if (fs.existsSync(cachePath)) {
+    //    const cachedHtml = fs.readFileSync(cachePath, { encoding: 'utf8' });
+    //    reply.header('Content-Type', 'text/html; charset=utf-8');
+    //    return reply.send(cachedHtml);
+    //}
+
+    let pageContent = '';
+    try {
+        // Initialize crawler specific for SSR
+        const ssrCrawler = new PuppeteerCrawler({
+            async requestHandler({ page }) {
+                // Here, unlike in the Google search example, there's no need for Dataset storage
+                // as we are handling a single page content extraction.
+                pageContent = await page.content();
+                
+            },
+            errorHandler({ request, error }) {
+                console.log(`Error crawling ${request.url}: ${error.message}`);
+                throw error; // Re-throw the error for outer try..catch to handle
+            },
+        });
+
+        // Add the URL to the crawler queue
+        await ssrCrawler.addRequests([urlToRender]);
+
+        // Start the SSR crawler. This will update pageContent with the rendered HTML.
+        await ssrCrawler.run();
+
+        // Save the rendered content to cache for future requests
+        fs.writeFileSync(cachePath, pageContent);
+        console.log('pageContent',pageContent )
+        // Send the rendered page content back
+        reply.header('Content-Type', 'text/html; charset=utf-8');
+        reply.send(pageContent);
+    } catch (err) {
+        console.error(err);
+        reply.status(500).send('Failed to render the page.');
+    }
 });
 
 
@@ -298,6 +262,9 @@ const start = async () => {
             }
         });
         await globalPage.setRequestInterception(true);
+        globalPage.on('console', (msg)=>{
+            console.log('console', msg)
+        })
         await fastify.listen({ port: 4000, host: '0.0.0.0' })
     } catch (err) {
         fastify.log.error(err)
