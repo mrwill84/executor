@@ -70,11 +70,10 @@ fastify.post('/google', async (request, reply) => {
     let results = await Dataset.getData();
     let items = results.items
     // Clear the Dataset for the next request
-    //await results.drop();
-    if (items&& items.length > 0){
-        items = items.slice(top)
+    
+    if (items && items.length > 0){
+        items = items.slice(0,top)
     }
-
     reply.send( items );
 });
 
@@ -144,8 +143,8 @@ fastify.post('/ssr', async (request, reply) => {
         await ssrCrawler.run();
 
         // Save the rendered content to cache for future requests
-        fs.writeFileSync(cachePath, pageContent);
-        console.log('pageContent',pageContent )
+        // fs.writeFileSync(cachePath, pageContent);
+        // console.log('pageContent',pageContent )
         // Send the rendered page content back
         reply.header('Content-Type', 'text/html; charset=utf-8');
         reply.send(pageContent);
