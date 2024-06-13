@@ -2,6 +2,7 @@
 import Fastify from 'fastify' 
 import fs from 'fs'
 import url from 'url'
+
 const fastify = Fastify({
     logger: {
         level: 'info',
@@ -24,27 +25,7 @@ let globalPage = null
 import { PuppeteerCrawler, Dataset } from 'crawlee';
 
 // Define the crawler outside the request handler to reuse it if possible
-const crawler = new PuppeteerCrawler({
-    async requestHandler({ request, page }) {
-        const { item, top, pages } = request.userData;
-       // await page.goto(searchURL, { waitUntil: 'networkidle2' });
-       // await scrollMoreRandomly(page, pages);
-
-        const booksResults = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('.tF2Cxc')).map(el => ({
-                title: el.querySelector('.DKV0Md')?.textContent,
-                link: el.querySelector('.yuRUbf a')?.getAttribute('href'),
-                description: el.querySelector('.lEBKkf')?.textContent,
-            }));
-        });
-        // console.log('booksResults',booksResults )
-        // Use Dataset to store the results temporarily
-        await Dataset.pushData(booksResults.slice(0, top));
-    },
-    errorHandler({ error }) {
-        console.log(`Error occurred during crawling: ${error.message}`);
-    }
-});
+ 
 
 async function scrollMoreRandomly(page, pagesCount) {
     for (let i = 0; i < pagesCount; i++) {
@@ -61,19 +42,41 @@ fastify.post('/google', async (request, reply) => {
     const { item, top, pages } = request.body;
     const encodedSearchTerm = encodeURIComponent(item);
     const searchURL = `https://www.google.com/search?q=${encodedSearchTerm}&gl=us`;
+    console.log( 'searchURL',searchURL)
+    let results = '';
+    const crawler = new PuppeteerCrawler({
+        //maxConcurrency: 1,
+        async requestHandler({ request, page }) {
+     
+            const booksResults = await page.evaluate(() => {
+                return Array.from(document.querySelectorAll('.MjjYud')).map(el => ({
+                    title: el.querySelector('.DKV0Md')?.textContent,
+                    link: el.querySelector('.yuRUbf a')?.getAttribute('href'),
+                    description: el.querySelector('.Hdw6tb')?.textContent,
+                }));
+            });
+            results = booksResults.filter(book => book.link);
+            
+        },
+        errorHandler({ error }) {
+            console.log(`Error occurred during crawling: ${error.message}`);
+        }
+    });
+
     await crawler.addRequests([ searchURL ]);
 
     // Start the crawler
     await crawler.run();
 
     // Retrieve the results from the Dataset
-    let results = await Dataset.getData();
+    //let results = await Dataset.getData();
     let items = results.items
     // Clear the Dataset for the next request
     
     if (items && items.length > 0){
         items = items.slice(0,top)
     }
+    console.log('encodedSearchTerm2', JSON.stringify(items))
     reply.send( items );
 });
 
@@ -112,23 +115,22 @@ fastify.post('/ssr', async (request, reply) => {
     const fileName = getFileNameFromUrl(urlToRender);
     urlToRender = urlToRender.replaceAll('"','')
     console.log( 'urlToRender',urlToRender)
+    // console.log( 'urlToRender',urlToRender)
     // Check if we already have this page saved
-    const cachePath = `/usr/cache/${fileName}`;
-    //if (fs.existsSync(cachePath)) {
+    // const cachePath = `/usr/cache/${fileName}`;
+    // if (fs.existsSync(cachePath)) {
     //    const cachedHtml = fs.readFileSync(cachePath, { encoding: 'utf8' });
     //    reply.header('Content-Type', 'text/html; charset=utf-8');
     //    return reply.send(cachedHtml);
-    //}
+    // }
 
     let pageContent = '';
     try {
         // Initialize crawler specific for SSR
         const ssrCrawler = new PuppeteerCrawler({
+            maxConcurrency: 1,
             async requestHandler({ page }) {
-                // Here, unlike in the Google search example, there's no need for Dataset storage
-                // as we are handling a single page content extraction.
                 pageContent = await page.content();
-                
             },
             errorHandler({ request, error }) {
                 console.log(`Error crawling ${request.url}: ${error.message}`);
@@ -138,14 +140,9 @@ fastify.post('/ssr', async (request, reply) => {
 
         // Add the URL to the crawler queue
         await ssrCrawler.addRequests([urlToRender]);
-
         // Start the SSR crawler. This will update pageContent with the rendered HTML.
         await ssrCrawler.run();
-
         // Save the rendered content to cache for future requests
-        // fs.writeFileSync(cachePath, pageContent);
-        // console.log('pageContent',pageContent )
-        // Send the rendered page content back
         reply.header('Content-Type', 'text/html; charset=utf-8');
         reply.send(pageContent);
     } catch (err) {
