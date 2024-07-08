@@ -38,6 +38,29 @@ async function scrollMoreRandomly(page, pagesCount) {
     }
 }
 
+fastify.post('/links', async (request, reply) => {
+    const {  website } = request.body;
+    const items = []
+    const crawler = new PuppeteerCrawler({
+        async requestHandler({ request, page, enqueueLinks, log }) {
+            const title = await page.title();
+            items.push(`Title of ${request.url}: ${title}`);
+
+            await enqueueLinks({
+                globs: [`${website}/**`],
+            });
+        },
+        maxRequestsPerCrawl: 10,
+    });
+
+    await crawler.addRequests(['website']);
+    await crawler.run();
+    reply.send(items);
+});
+// Run the crawler with initial request
+ 
+
+
 fastify.post('/google', async (request, reply) => {
     const { item, top, pages } = request.body;
     const encodedSearchTerm = encodeURIComponent(item);
@@ -209,6 +232,7 @@ async function screenshot(url) {
         throw new Error('page.goto/waitForSelector timed out.' + url);
     }
 }
+
 
 
 fastify.get('/screenshot', async (request, reply) => {
