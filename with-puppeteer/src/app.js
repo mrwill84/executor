@@ -2,7 +2,7 @@
 import Fastify from 'fastify'
 import fs from 'fs'
 import url from 'url'
-
+import redis from 'redis';
 const fastify = Fastify({
     logger: {
         level: 'info',
@@ -38,31 +38,53 @@ async function scrollMoreRandomly(page, pagesCount) {
 
 fastify.post('/links', async (request, reply) => {
     try {
-    const {  website } = request.body;
-    const items = []
-    console.log('website',website )
-    const crawler = new PuppeteerCrawler({
-        async requestHandler({ request, page, enqueueLinks, log }) {
-            const title = await page.title();
-            items.push(`Title of ${request.url}: ${title}`);
-           // console.log(title )
-           // log(title )
-            await enqueueLinks({
-                globs: [`${website}/**`],
-            });
-        },
-       // maxRequestsPerCrawl: 10,
-    });
-
-    await crawler.addRequests([`${website}`]);
-    await crawler.run();
-    reply.send('ok');
-    }catch(e){
+        const { website } = request.body;
+        const client = redis.createClient({
+            url:'redis://bandaai_redis:6379'
+            // Default connection settings; specify port and host if needed
+          });
+        await client.connect();
+        const results = []
+        const cachedResults = await client.hGetAll(`website:${website}`);
+        for (const  key in cachedResults ) { 
+            const res = cachedResults[key]
+            results.push(JSON.parse(res))
+        }
+        if(cachedResults.length>0) {
+            return reply.send(results); // Parse and return the cached results
+        }
+        
+        //console.log('website',website )
+        const crawler = new PuppeteerCrawler({
+            async requestHandler({ request, page, enqueueLinks, log }) {
+                //const title = await page.title();
+                const res = {
+                    content: await page.content(),
+                    title: await page.title(),
+                    url: request.url,
+                    succeeded: true,
+                }
+                await client.hSet(
+                    `website:${website}`, `${res.url}`,
+                        JSON.stringify(res)
+                    );
+                results.push(res)
+                await enqueueLinks({
+                    globs: [`${website}/**`],
+                });
+            },
+        });
+         
+        
+        await crawler.addRequests([`${website}`]);
+        await crawler.run();
+        reply.send(results);
+    } catch (e) {
         console.log(e)
     }
 });
 // Run the crawler with initial request
- 
+
 
 
 fastify.post('/google', async (request, reply) => {
@@ -137,7 +159,7 @@ function getFileNameFromUrl(fullUrl) {
 
 fastify.post('/ssr-v2', async (request, reply) => {
     let urls = request.body.urls;
-    let atleast = 1 
+    let atleast = 1
     // Check if urls is not an array or is empty
     if (!Array.isArray(urls) || urls.length === 0) {
         return reply.status(400).send({ error: "Invalid input: urls must be a non-empty array." });
@@ -145,10 +167,10 @@ fastify.post('/ssr-v2', async (request, reply) => {
     let results = []
     const ssrCrawler = new PuppeteerCrawler({
         maxConcurrency: 1,
-        async requestHandler({ page ,request}) {
+        async requestHandler({ page, request }) {
             //pageContent = await page.content();
             results.push({
-                content:await page.content(),
+                content: await page.content(),
                 title: await page.title(),
                 url: request.url,
                 succeeded: true,
@@ -175,9 +197,9 @@ fastify.post('/ssr-v2', async (request, reply) => {
         reply.status(400).send({ error: "Invalid format of urls." });
     }
     await ssrCrawler.run();
-    if ( results.length >= atleast ){
+    if (results.length >= atleast) {
         reply.send(results[0].content);
-    }else{ 
+    } else {
         reply.status(400).send({ error: "No Enough Available " });
     }
     //reply.send(pageContent);
@@ -259,7 +281,7 @@ fastify.get('/linkedin', async (request, reply) => {
 
 const start = async () => {
     try {
-        
+
         await fastify.listen({ port: 4000, host: '0.0.0.0' })
     } catch (err) {
         fastify.log.error(err)
