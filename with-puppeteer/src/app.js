@@ -50,8 +50,9 @@ fastify.post('/links', async (request, reply) => {
             const res = cachedResults[key]
             results.push(JSON.parse(res))
         }
-        if(cachedResults.length>0) {
-            return reply.send(results); // Parse and return the cached results
+        console.log( 'results',results.length)
+        if(results.length > 0) {
+            return reply.send('ok'); // Parse and return the cached results
         }
         
         //console.log('website',website )
@@ -78,7 +79,7 @@ fastify.post('/links', async (request, reply) => {
         
         await crawler.addRequests([`${website}`]);
         await crawler.run();
-        reply.send(results);
+        reply.send('ok');
     } catch (e) {
         console.log(e)
     }
