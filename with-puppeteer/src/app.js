@@ -45,18 +45,14 @@ fastify.post('/links', async (request, reply) => {
           });
         await client.connect();
         const results = []
-        const cachedResults = await client.hGetAll(`website:${website}`);
-        for (const  key in cachedResults ) { 
-            const res = cachedResults[key]
-            results.push(JSON.parse(res))
-        }
-        console.log( 'results',results.length)
-        if(results.length > 0) {
+        const cachedResultsLen = await client.hLen(`website:${website}`);
+        if(cachedResultsLen > 0) {
             return reply.send('ok'); // Parse and return the cached results
         }
         
         //console.log('website',website )
         const crawler = new PuppeteerCrawler({
+            maxConcurrency: 1,
             async requestHandler({ request, page, enqueueLinks, log }) {
                 //const title = await page.title();
                 const res = {
